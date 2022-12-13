@@ -17,8 +17,8 @@ int addOffTarget(OffTarget *offTargetList, int offTargetListSize, char* lineBuff
 void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize);
 
 int main(){
-    char *command = "./cas-offinder input.txt G output.txt";
-    system(command);
+    //char *command = "./cas-offinder input.txt G output.txt";
+    //system(command);
     FILE *OutputFile = fopen(CasOffinderPath"/output.txt", "r");
     FILE *FilteredOutputFile = fopen(CasOffinderPath"/output2.txt", "w");
     OffTarget *offTargetList = (OffTarget *)malloc(800*sizeof(OffTarget));
