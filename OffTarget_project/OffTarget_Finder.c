@@ -7,8 +7,8 @@
 #define ALLOCATE_MEMORY_FOR_TEXT_FILE 300000000 //300000000
 #define MAX_OFF_TARGETS 1000
 #define MAX_LINE_SIZE 100
-#define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget/inout/"
-#define MAX_DISTANCE 2 //Maximum distance between two matches - Number of R vectors
+#define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
+#define MAX_DISTANCE 3 //Maximum distance between two matches - Number of R vectors
 #define ALPHABET_SIZE 4
 #define CHAR_TO_MASK(char) (char == 'A' ? 0 : char == 'C' ? 1 : char == 'G' ? 2 : char == 'T' ? 3 : 4)
 
@@ -54,10 +54,6 @@ int main(){
         printf("Finish reading, time: %f seconds\n", elapsed0);
         fclose(TextFile);
         while (inx != 0){
-            if (107374144 >= inx && inx >= 107374120) printf("%c",Text[inx]);
-            if (inx == 107374120) printf("\n");
-            if (214747865 >= inx && inx >= 214747841) printf("%c",Text[inx]);
-            if (inx == 214747841) printf("\n");
             BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[inx])], RdVectors);
             NumOfOffTargets = CheckForMatch(RdVectors, inx, offTargetList, NumOfOffTargets);
             inx--;
@@ -159,8 +155,6 @@ int CheckForMatch(unsigned long *RdVectors, int inx, OffTarget *offTargetList, i
     for (d = 0; d <=MAX_DISTANCE; d++) {
         if ((RdVectors[d] & CheckMsbIsZero) == 0) {
             NumOfOffTargets = addOffTargetToList(offTargetList, inx, d, NumOfOffTargets);
-            //fprintf(OutputFile,"Index %10d,  distance %d\n",inx,d);
-            //printf("Index %10d,  distance %d\n",inx,d);
             return NumOfOffTargets;
         }
     }

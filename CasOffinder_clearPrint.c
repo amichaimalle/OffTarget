@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <strings.h>
 #include <stdlib.h>
-#include <math.h>
 #include <time.h>
 
+#define MAX_DISTANCE 3
 #define CasOffinderPath "/Users/amichaim/Desktop/cas-offinder-3.0.0b3"
 
 typedef struct {
@@ -68,7 +68,6 @@ int checkLine(char* lineBuffer){
 }
 int addOffTarget(OffTarget *offTargetList, int offTargetListSize, char* lineBuffer){
     int i, lineLength = (int)strlen(lineBuffer);
-    int lineInx = 0;
     int Flag = 0;
     int tabCounter = 0;
     int TargetInx = 0;
@@ -86,6 +85,7 @@ int addOffTarget(OffTarget *offTargetList, int offTargetListSize, char* lineBuff
             distance = distance + atoi(lineBuffer+i);
         }
     }
+    if (distance > MAX_DISTANCE){return offTargetListSize;}
     for (i=0;i<offTargetListSize; i++){
         if (offTargetList[i].inx == TargetInx && offTargetList[i].Reverse == Reverse){
             if (offTargetList[i].distance > distance){
