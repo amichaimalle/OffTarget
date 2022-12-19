@@ -54,8 +54,10 @@ int main(){
         printf("Finish reading, time: %f seconds\n", elapsed0);
         fclose(TextFile);
         while (inx != 0){
-            BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[inx])], RdVectors);
-            NumOfOffTargets = CheckForMatch(RdVectors, inx, offTargetList, NumOfOffTargets);
+            if (Text[inx] == 'A' || Text[inx] == 'C' || Text[inx] == 'G' || Text[inx] == 'T'){
+                BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[inx])], RdVectors);
+                NumOfOffTargets = CheckForMatch(RdVectors, inx, offTargetList, NumOfOffTargets);
+            }
             inx--;
         }
         free(Text);
@@ -192,14 +194,14 @@ void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize){
     }
 }
 void printOffTargets(FILE *OutputFile, OffTarget *offTargetList, int NumOfOffTargets){
-    fprintf(OutputFile,"OffFinder v1.0\n");
-    //printf("OffFinder v1.0\n");
-    fprintf(OutputFile,"Index\tDistance\tReverse\n");
-    //printf("Index\tDistance\tReverse\n");
+    //fprintf(OutputFile,"OffFinder v1.0\n");
+    printf("OffFinder v1.0\n");
+    //fprintf(OutputFile,"Index\tDistance\tReverse\n");
+    printf("Index\tDistance\tReverse\n");
     for (int i = 0; i < NumOfOffTargets; ++i) {
-        fprintf(OutputFile, "Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx,
-                    offTargetList[i].distance, offTargetList[i].Reverse);
-        //printf("Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].distance,
-        //           offTargetList[i].Reverse);
+        //fprintf(OutputFile, "Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx,
+        //            offTargetList[i].distance, offTargetList[i].Reverse);
+        printf("Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].distance,
+                   offTargetList[i].Reverse);
     }
 }
