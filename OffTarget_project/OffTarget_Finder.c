@@ -5,10 +5,10 @@
 #include <time.h>
 
 #define ALLOCATE_MEMORY_FOR_TEXT_FILE 300000000 //300000000
-#define MAX_OFF_TARGETS 1000
+#define MAX_OFF_TARGETS 7000
 #define MAX_LINE_SIZE 100
 #define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
-#define MAX_DISTANCE 3 //Maximum distance between two matches - Number of R vectors
+#define MAX_DISTANCE 5 //Maximum distance between two matches - Number of R vectors
 #define ALPHABET_SIZE 4
 #define CHAR_TO_MASK(char) (char == 'A' ? 0 : char == 'C' ? 1 : char == 'G' ? 2 : char == 'T' ? 3 : 4)
 
