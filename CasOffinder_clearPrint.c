@@ -3,22 +3,26 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define MAX_DISTANCE 3
+#define MAX_DISTANCE 2
+#define MAX_MISMATCH 4
+#define MAX_BALCH 1
 #define CasOffinderPath "/Users/amichaim/Desktop/cas-offinder-3.0.0b3"
 
 typedef struct {
     int inx;
+    int mismatch;
+    int balch;
     int distance;
     char Reverse;
 } OffTarget;
 
 int checkLine(char* lineBuffer);
 int addOffTarget(OffTarget *offTargetList, int offTargetListSize, char* lineBuffer);
-void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize);
+void sortOffTargetLineByInx(OffTarget *offTargetList, int offTargetListSize);
 
 int main(){
-    char *command = "./cas-offinder input.txt G output.txt";
-    system(command);
+    //char *command = "/Users/amichaim/Desktop/cas-offinder-3.0.0b3/cas-offinder input.txt G output.txt";    //"./cas-offinder input.txt G output.txt";
+    //system(command);
     FILE *OutputFile = fopen(CasOffinderPath"/output.txt", "r");
     FILE *FilteredOutputFile = fopen(CasOffinderPath"/output2.txt", "w");
     OffTarget *offTargetList = (OffTarget *)malloc(800*sizeof(OffTarget));
@@ -34,13 +38,13 @@ int main(){
             offTargetListSize = addOffTarget(offTargetList, offTargetListSize, lineBuffer);
         }
     }
-    sortOffTargetLintByInx(offTargetList,offTargetListSize);
+    sortOffTargetLineByInx(offTargetList,offTargetListSize);
     for (int i = 0; i < offTargetListSize; ++i) {
         if (offTargetList[i].Reverse == '+') {
-            fprintf(FilteredOutputFile, "Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx,
-                    offTargetList[i].distance, offTargetList[i].Reverse);
-            printf("Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].distance,
-                   offTargetList[i].Reverse);
+            fprintf(FilteredOutputFile, "Inx : %10d\tdistance : %d\tMismatch : %d\tBalch : %d\tReverse : %c\n", offTargetList[i].inx,
+                    offTargetList[i].distance, offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
+            //printf("Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].distance,
+            //       offTargetList[i].Reverse);
         }
     }
     fclose(OutputFile);
@@ -71,25 +75,32 @@ int addOffTarget(OffTarget *offTargetList, int offTargetListSize, char* lineBuff
     int Flag = 0;
     int tabCounter = 0;
     int TargetInx = 0;
-    int distance = 0;
+    int distance = 0, mismatch = 0, balch = 0;
     char Reverse;
-    for (i=0;i<lineLength; i++){
-        if (lineBuffer[i] == '\t'){
+    for (i=0;i<lineLength; i++) {
+        if (lineBuffer[i] == '\t') {
             tabCounter++;
-        } else if (tabCounter == 5 && Flag == 0){
-            TargetInx = atoi(lineBuffer+i);
+        } else if (tabCounter == 5 && Flag == 0) {
+            TargetInx = atoi(lineBuffer + i);
             Flag = 1;
-        } else if (tabCounter == 6){
+        } else if (tabCounter == 6) {
             Reverse = lineBuffer[i];
-        } else if (tabCounter == 7 || tabCounter == 8){
-            distance = distance + atoi(lineBuffer+i);
+        } else if (tabCounter == 7) {
+            mismatch = atoi(lineBuffer + i);
+            distance = mismatch;
+        } else if (tabCounter == 8) {
+            balch = balch + atoi(lineBuffer + i);
+            distance = distance + balch;
+            tabCounter ++; // for end of line behevior
         }
     }
-    if (distance > MAX_DISTANCE){return offTargetListSize;}
+    if ((mismatch > MAX_MISMATCH) || (balch > MAX_BALCH)){return offTargetListSize;}
     for (i=0;i<offTargetListSize; i++){
         if (offTargetList[i].inx == TargetInx && offTargetList[i].Reverse == Reverse){
             if (offTargetList[i].distance > distance){
                 offTargetList[i].distance = distance;
+                offTargetList[i].mismatch = mismatch;
+                offTargetList[i].balch = balch;
             }
             return offTargetListSize;
         }
@@ -97,12 +108,14 @@ int addOffTarget(OffTarget *offTargetList, int offTargetListSize, char* lineBuff
     if (i==offTargetListSize){
         offTargetList[i].inx = TargetInx;
         offTargetList[i].distance = distance;
+        offTargetList[i].mismatch = mismatch;
+        offTargetList[i].balch = balch;
         offTargetList[i].Reverse = Reverse;
         offTargetListSize++;
     }
     return offTargetListSize;
 }
-void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize){
+void sortOffTargetLineByInx(OffTarget *offTargetList, int offTargetListSize){
     int i,j;
     OffTarget temp;
     for (i=0;i<offTargetListSize; i++){
