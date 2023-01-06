@@ -8,35 +8,45 @@
 #define MAX_OFF_TARGETS 7000
 #define MAX_LINE_SIZE 100
 #define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
-#define MAX_DISTANCE 2 //Maximum distance between two matches - Number of R vectors
+#define MAX_DISTANCE 4 //Maximum distance between two matches - Number of R vectors
 #define ALPHABET_SIZE 4
 #define CHAR_TO_MASK(char) (char == 'A' ? 0 : char == 'C' ? 1 : char == 'G' ? 2 : char == 'T' ? 3 : 4)
 
-#define MAX_MISMATCH 1
+#define MAX_MISMATCH 3
 #define MAX_BALCH 1
 
 //struct
 typedef struct {
     int inx;
     int distance;
+    int balch;
+    int mismatch;
     char Reverse;
+    char TextTarget[25];
 } OffTarget;
 
 typedef struct {
-    unsigned long RdVectors[MAX_DISTANCE+1];
-    unsigned long RdMismatchVectors[MAX_MISMATCH+1];
-    unsigned long RdBalchVectors[MAX_BALCH+1];
+    //unsigned long RdVectors;
+    unsigned long RdMatchVectors[MAX_DISTANCE+1];
+    unsigned long RdMismatchVectors[MAX_DISTANCE+1];
+    unsigned long RdInsertionVectors[MAX_DISTANCE+1];
+    unsigned long RdDeletionVectors[MAX_DISTANCE+1];
 } RdMatrix;
 
 //Prototypes
 int FileLength(FILE *file);
 int  SetPatternBitMaskVectors(unsigned long *PatternBitMaskVectors);
-void InitRdVectors(unsigned long *RdVectors, int PatternLength);
-void BitapCalc(unsigned long PmVector, unsigned long *RdVectors);
-int CheckForMatch(unsigned long *RdVectors, int inx, OffTarget *offTargetList, int NumOfOffTargets);
-int addOffTargetToList(OffTarget *offTargetList, int index, int distance, int offTargetListSize);
+//void InitRdVectors(unsigned long *RdVectors, int PatternLength);
+void InitRdVectorsAndMatrix(unsigned long *RdVectors, RdMatrix **RdMatrixs, int PatternLength);
+void BitapCalc(unsigned long PmVector, unsigned long *RdVectors, RdMatrix *RdMatrix);
+OffTarget *CheckForMatch(unsigned long *RdVectors, int inx, RdMatrix **RdMatrixs, int PatternLength);
+OffTarget *TargetTB(int Inx, int PatternLength, RdMatrix **RdMatrixs, int Errors);
+//int addOffTargetToList(OffTarget *offTargetList, int index, int distance, int offTargetListSize);
 void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize);
+int addOffTargetToList(OffTarget *offTargetList, int offTargetListSize, OffTarget *offTarget);
 void printOffTargets(FILE *OutputFile, OffTarget *offTargetList, int NumOfOffTargets);
+void FreeRdMatrixs(RdMatrix **RdMatrixs, int PatternLength);
+
 
 int main(){
     clock_t start = clock();
@@ -49,7 +59,9 @@ int main(){
     unsigned long RdVectors[MAX_DISTANCE+1];
     //  initialize the PatternMasks & RdVectors
     PatternLength = SetPatternBitMaskVectors(PatternBitMaskVectors);
-    InitRdVectors(RdVectors, PatternLength);
+    RdMatrix **RdMatrixs = (RdMatrix **)malloc(PatternLength*sizeof(RdMatrix *));
+    OffTarget *offTarget;
+    InitRdVectorsAndMatrix(RdVectors, RdMatrixs, PatternLength);
     if (ALLOCATE_MEMORY_FOR_TEXT_FILE) {
         // Reading text file
         char *Text = (char *) malloc(ALLOCATE_MEMORY_FOR_TEXT_FILE * sizeof(char));
@@ -66,8 +78,16 @@ int main(){
         // OffTarget Finder
         while (inx != 0) {
             if (Text[inx] == 'A' || Text[inx] == 'C' || Text[inx] == 'G' || Text[inx] == 'T') {
-                BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[inx])], RdVectors);
-                NumOfOffTargets = CheckForMatch(RdVectors, inx, offTargetList, NumOfOffTargets);
+                int checks = inx%PatternLength;
+                BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[inx])], RdVectors, RdMatrixs[inx%PatternLength]);
+                offTarget = CheckForMatch(RdVectors, inx, RdMatrixs, PatternLength);
+                if (offTarget != NULL) {
+                    for (int j=0; j<24;j++) {
+                        offTarget->TextTarget[j] = Text[inx+j];
+                    }
+                    NumOfOffTargets = addOffTargetToList(offTargetList, NumOfOffTargets, offTarget);
+                }
+                //NumOfOffTargets = CheckForMatch(RdVectors, inx, offTargetList, NumOfOffTargets);
             }
             inx--;
         }
@@ -94,6 +114,7 @@ int main(){
     printf("Finish running time: %f seconds\n", elapsed1);
     sortOffTargetLintByInx(offTargetList,NumOfOffTargets);
     printOffTargets(OutputFile, offTargetList, NumOfOffTargets);
+    FreeRdMatrixs(RdMatrixs, PatternLength);
     free(offTargetList);
     fclose(OutputFile);
 }
@@ -141,29 +162,100 @@ int SetPatternBitMaskVectors(unsigned long *PatternBitMaskVectors){
     fclose(PatternFile);
     return PatternLength;
 }
-void InitRdVectors(unsigned long *RdVectors, int PatternLength){
+void InitRdVectorsAndMatrix(unsigned long *RdVectors, RdMatrix **RdMatrixs, int PatternLength){
     int i;
     for (i=0;i<=MAX_DISTANCE;i++){
         RdVectors[i] = -1;
         RdVectors[i] = RdVectors[i] << (sizeof(unsigned long)*4 - PatternLength);
     }
+    for (i=0;i<PatternLength;i++){
+        RdMatrixs[i] = (RdMatrix*)malloc(sizeof(RdMatrix));
+    }
 }
-void BitapCalc(unsigned long PmVector, unsigned long *RdVectors){
+void BitapCalc(unsigned long PmVector, unsigned long *RdVectors, RdMatrix *RdMatrix){
     int d;
     unsigned long RdMinus1Vector;
     unsigned long RdVectorInsertion, RdVectorDeletion, RdVectorMatch, RdVectorMismatch;
     RdMinus1Vector = RdVectors[0];
     RdVectors[0] = (RdVectors[0]<<1 | PmVector);
+    RdMatrix->RdMatchVectors[0] = RdVectors[0];
     for (d=1;d<=MAX_DISTANCE;d++){
         RdVectorMatch = (RdVectors[d]<<1 | PmVector);
         RdVectorMismatch = RdMinus1Vector<<1;
         RdVectorDeletion = RdMinus1Vector;
         RdVectorInsertion = RdVectors[d-1]<<1;
+        RdMatrix->RdMatchVectors[d] = RdVectorMatch;
+        RdMatrix->RdMismatchVectors[d] = RdVectorMismatch;
+        RdMatrix->RdDeletionVectors[d] = RdVectorDeletion;
+        RdMatrix->RdInsertionVectors[d] = RdVectorInsertion;
         RdMinus1Vector = RdVectors[d];  // save RdMinus1Vector for next iteration
         RdVectors[d] = RdVectorMatch & RdVectorMismatch & RdVectorInsertion & RdVectorDeletion;
     }
 }
-int CheckForMatch(unsigned long *RdVectors, int inx, OffTarget *offTargetList, int NumOfOffTargets){
+OffTarget *CheckForMatch(unsigned long *RdVectors, int inx, RdMatrix **RdMatrixs, int PatternLength){
+    int d;
+    OffTarget *offTarget;
+    unsigned long CheckMsbIsZero = (unsigned long)pow(2, sizeof(unsigned long)*4-1);
+    for (d = 0; d <=MAX_DISTANCE; d++) {
+        if ((RdVectors[d] & CheckMsbIsZero) == 0) {
+            offTarget = TargetTB(inx, PatternLength, RdMatrixs, d);
+            if (offTarget != NULL) {
+                return offTarget;
+            }
+        }
+    }
+    return NULL;
+}
+OffTarget *TargetTB(int Inx, int PatternLength, RdMatrix **RdMatrixs, int Errors) {
+    int PatternInx = 0, TextInx = PatternLength, CurErrors = 0, Mismatch = 0, Balch = 0;
+    int MatrixInx = (Inx)%PatternLength;
+    RdMatrix debugMatrix;
+    unsigned long CheckInxBitZero = (unsigned long)pow(2,sizeof(unsigned long)*4 - PatternLength);
+    while ((PatternInx < PatternLength) & (TextInx > 0) & (CurErrors<Errors)) { // can be with #define latter
+        //check the actual tb and try all option when having a balch (mismath in higher prio)
+        if ((RdMatrixs[MatrixInx]->RdMatchVectors[CurErrors] & CheckInxBitZero) == 0) {  //Match
+            PatternInx++;
+            MatrixInx = (MatrixInx+1)%PatternLength;
+            TextInx--;
+            CheckInxBitZero = CheckInxBitZero << 1;
+        /*} else if (((RdMatrixs[MatrixInx]->RdMismatchVectors[CurErrors+1] & CheckInxBitZero) == 0) && (Mismatch<MAX_MISMATCH)) { //Mismatch
+            CurErrors++;
+            Mismatch++;
+            PatternInx++;
+            MatrixInx = (MatrixInx+1)%PatternLength;
+            TextInx--;
+            CheckInxBitZero = CheckInxBitZero << 1;*/
+        } else if (((RdMatrixs[MatrixInx]->RdDeletionVectors[CurErrors+1] & CheckInxBitZero) == 0) && (Balch<MAX_BALCH)){ //Deletion
+            CurErrors++;
+            Balch++;
+            PatternInx++;
+            MatrixInx = (MatrixInx+1)%PatternLength;
+            //RdMatrixs[MatrixInx]->RdDeletionVectors[CurErrors] = RdMatrixs[MatrixInx]->RdDeletionVectors[CurErrors] || CheckInxBitZero;
+        } else if (((RdMatrixs[MatrixInx]->RdInsertionVectors[CurErrors+1] & CheckInxBitZero) == 0) && (Balch<MAX_BALCH)){ //Insertion
+            CurErrors++;
+            Balch++;
+            TextInx--;
+            //RdMatrixs[MatrixInx]->RdInsertionVectors[CurErrors] = RdMatrixs[MatrixInx]->RdInsertionVectors[CurErrors] || CheckInxBitZero;
+            CheckInxBitZero = CheckInxBitZero << 1;
+        } else if (((RdMatrixs[MatrixInx]->RdMismatchVectors[CurErrors+1] & CheckInxBitZero) == 0) && (Mismatch<MAX_MISMATCH)) { //Mismatch
+            CurErrors++;
+            Mismatch++;
+            PatternInx++;
+            MatrixInx = (MatrixInx+1)%PatternLength;
+            TextInx--;
+            CheckInxBitZero = CheckInxBitZero << 1;
+        } else {
+            return NULL;
+        }
+    }
+    OffTarget *offTarget = (OffTarget *)malloc(sizeof(OffTarget));
+    offTarget->inx = Inx;
+    offTarget->distance = CurErrors;
+    offTarget->balch = Balch;
+    offTarget->mismatch = Mismatch;
+    return offTarget;
+}
+/*int CheckForMatch(unsigned long *RdVectors, int inx, OffTarget *offTargetList, int NumOfOffTargets){
     int d;
     unsigned long CheckMsbIsZero = (unsigned long)pow(2, sizeof(unsigned long)*4-1);
     for (d = 0; d <=MAX_DISTANCE; d++) {
@@ -173,8 +265,19 @@ int CheckForMatch(unsigned long *RdVectors, int inx, OffTarget *offTargetList, i
         }
     }
     return NumOfOffTargets;
+}*/
+int addOffTargetToList(OffTarget *offTargetList, int offTargetListSize, OffTarget *offTarget){
+    strcpy(offTargetList[offTargetListSize].TextTarget, offTarget->TextTarget);
+    offTargetList[offTargetListSize].TextTarget[24] = '\0';
+    offTargetList[offTargetListSize].inx = offTarget->inx;
+    offTargetList[offTargetListSize].distance = offTarget->distance;
+    offTargetList[offTargetListSize].balch = offTarget->balch;
+    offTargetList[offTargetListSize].mismatch = offTarget->mismatch;
+    offTargetList[offTargetListSize].Reverse = '+';
+    offTargetListSize++;
+    return offTargetListSize;
 }
-int addOffTargetToList(OffTarget *offTargetList, int index, int distance, int offTargetListSize){
+/*int addOffTargetToList(OffTarget *offTargetList, int index, int distance, int offTargetListSize){
     int i;
     for (i=0;i<offTargetListSize; i++){
         if (offTargetList[i].inx == index){//} && offTargetList[i].Reverse == Reverse){
@@ -191,7 +294,7 @@ int addOffTargetToList(OffTarget *offTargetList, int index, int distance, int of
         offTargetListSize++;
     }
     return offTargetListSize;
-}
+}*/
 void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize){
     int i,j;
     OffTarget temp;
@@ -206,14 +309,20 @@ void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize){
     }
 }
 void printOffTargets(FILE *OutputFile, OffTarget *offTargetList, int NumOfOffTargets){
-    //fprintf(OutputFile,"OffFinder v1.0\n");
-    printf("OffFinder v1.0\n");
+    //fprintf(OutputFile,"OffFinder v1.1\n");
+    printf("OffFinder v1.1\n");
     //fprintf(OutputFile,"Index\tDistance\tReverse\n");
-    printf("Index\tDistance\tReverse\n");
+    //printf("Index\tDistance\tMismatch\tBalch\tReverse\n");
     for (int i = 0; i < NumOfOffTargets; ++i) {
-        //fprintf(OutputFile, "Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx,
-        //            offTargetList[i].distance, offTargetList[i].Reverse);
-        printf("Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].distance,
-                   offTargetList[i].Reverse);
+        //fprintf(OutputFile, "Inx : %10d\tdistance : %d\tMismatch : %d\tBalch : %d\tReverse : %c\n", offTargetList[i].inx,
+        //            offTargetList[i].distance, offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
+        printf("Inx : %10d\tTarget: %s\tdistance : %d\tMismatch : %d\tBalch : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].TextTarget, offTargetList[i].distance,
+              offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
     }
+}
+void FreeRdMatrixs(RdMatrix **RdMatrixs, int PatternLength){
+    for (int i = 0; i < PatternLength; ++i) {
+        free(RdMatrixs[i]);
+    }
+    free(RdMatrixs);
 }

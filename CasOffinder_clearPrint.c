@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define MAX_DISTANCE 2
-#define MAX_MISMATCH 4
+#define MAX_DISTANCE 4
+#define MAX_MISMATCH 3
 #define MAX_BALCH 1
 #define CasOffinderPath "/Users/amichaim/Desktop/cas-offinder-3.0.0b3"
 
