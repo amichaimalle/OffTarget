@@ -8,7 +8,7 @@
 #define MAX_OFF_TARGETS 7000
 #define MAX_LINE_SIZE 100
 #define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
-#define MAX_DISTANCE 4 //Maximum distance between two matches - Number of R vectors
+#define MAX_DISTANCE 2 //Maximum distance between two matches - Number of R vectors
 #define ALPHABET_SIZE 4
 #define CHAR_TO_MASK(char) (char == 'A' ? 0 : char == 'C' ? 1 : char == 'G' ? 2 : char == 'T' ? 3 : 4)
 
