@@ -156,20 +156,11 @@ void InitRdVectorsAndMatrix(unsigned long *RdVectors, RdMatrix **RdMatrixs, int 
 }
 
 int OffFinderRunLoop(enum RunMode runMode,int PatternLength, unsigned long *PatternBitMaskVectors, int TextInx, char *Text, unsigned long *RdVectors, RdMatrix **RdMatrixs, OffTarget *offTargetList){ // TextInx need to be at the end of the text file
-    //int TextLength = TextInx;
     int NumOfOffTargets = 0;
     OffTarget *tempOffTarget = NULL;
     if ((runMode == forward) || (runMode == both)) {
         while (TextInx >= 0) { // Reverse = "+" (forward)
-            /*// -----------------------------
-            printf("\n\n\n\n\n------  bitap debug! ---------\n");
-            printf("TextInx: %d\n", TextInx);
-            printf("Text: %c\n", Text[TextInx]);
-            // -----------------------------*/
             if (Text[TextInx] == 'A' || Text[TextInx] == 'C' || Text[TextInx] == 'G' || Text[TextInx] == 'T') {
-                /*// -------------------------------
-                printf("mat inx = %d\n",(TextInx%(PatternLength+1)));
-                // -------------------------------*/
                 BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[TextInx])], RdVectors, RdMatrixs[TextInx%(PatternLength+1)]);
                 tempOffTarget = CheckForMatch(RdVectors, TextInx, RdMatrixs, PatternLength);
                 if (tempOffTarget != NULL) {
@@ -204,15 +195,6 @@ void BitapCalc(unsigned long PmVector, unsigned long *RdVectors, RdMatrix *RdMat
     int d;
     unsigned long RdMinus1Vector;
     unsigned long RdVectorInsertion, RdVectorDeletion, RdVectorMatch, RdVectorMismatch;
-    /*//---------------------------------
-
-    int Rd0, Rd1, pm;
-    Rd0 = (int)(RdVectors[0] >> 60);
-    Rd1 = (int)(RdVectors[1] >> 60);
-    printf("Rd0 = %d\n", Rd0);
-    printf("Rd1 = %d\n", Rd1);
-
-    //---------------------------------*/
     RdMinus1Vector = RdVectors[0];
     RdVectors[0] = (RdVectors[0]<<1 | PmVector);
     RdMatrix->RdMatchVectors[0] = RdVectors[0];
@@ -228,20 +210,6 @@ void BitapCalc(unsigned long PmVector, unsigned long *RdVectors, RdMatrix *RdMat
         RdMinus1Vector = RdVectors[d];  // save RdMinus1Vector for next iteration
         RdVectors[d] = RdVectorMatch & RdVectorMismatch & RdVectorInsertion & RdVectorDeletion;
     }
-    /*//---------------------------------
-
-    int mDebug, sDebug, dDebug, iDebug;
-    mDebug = (int)(RdVectorMatch >> 60);
-    sDebug = (int)(RdVectorMismatch >> 60);
-    dDebug = (int)(RdVectorDeletion >> 60);
-    iDebug = (int)(RdVectorInsertion >> 60);
-    printf("RdVectorMatch = %d\n", mDebug);
-    printf("RdVectorMismatch = %d\n", sDebug);
-    printf("RdVectorDeletion = %d\n", dDebug);
-    printf("RdVectorInsertion = %d\n", iDebug);
-    printf("---------------------------\n");
-
-    //---------------------------------*/
 }
 
 OffTarget *CheckForMatch(unsigned long *RdVectors, int inx, RdMatrix **RdMatrixs, int PatternLength){
@@ -262,91 +230,43 @@ OffTarget *CheckForMatch(unsigned long *RdVectors, int inx, RdMatrix **RdMatrixs
 OffTarget *TargetTB(int Inx, int PatternLength, RdMatrix **RdMatrixs, int Errors) {
     int PatternInx = 0, TextInx = PatternLength, CurError = Errors, Mismatch = 0, Balch = 0, AlignmentInx = 0;
     char AlignmentCode[MAX_PATTERN_LENGTH+2];
-    //unsigned long CheckInxBitZero = (unsigned long)pow(2,sizeof(unsigned long)*8 - PatternLength);
     unsigned long CheckInxBitZero = (unsigned long)pow(2,sizeof(unsigned long)*8-1);
     int MatrixInx = Inx%(PatternLength+1);    // initialize MatrixInx to the 1st matrix for this alignment
-
-    //---------------------------------
-    /*int mDebug,m1Debug,m0Debug, sDebug, dDebug, iDebug;
-    printf("TB debug!\n");
-    printf("MatrixInx: %d\n", MatrixInx);
-    printf("Inx: %d\n", Inx);
-    printf("PatternLength: %d\n", PatternLength);
-    for (int i=0; i<PatternLength+1; i++) {
-        m0Debug = (int)(RdMatrixs[i]->RdMatchVectors[0] >> 60);
-        m1Debug = (int)(RdMatrixs[i]->RdMatchVectors[1] >> 60);
-        sDebug = (int)(RdMatrixs[i]->RdMismatchVectors[1] >> 60);
-        dDebug = (int)(RdMatrixs[i]->RdDeletionVectors[1] >> 60);
-        iDebug = (int)(RdMatrixs[i]->RdInsertionVectors[1] >> 60);
-        printf("RdMatrixs[%d]->RdMatchVectors[0] = %d\n",i, m0Debug);
-        printf("RdMatrixs[%d]->RdMatchVectors[1] = %d\n",i, m1Debug);
-        printf("RdMatrixs[%d]->RdMismatchVectors[1] = %d\n",i, sDebug);
-        printf("RdMatrixs[%d]->RdDeletionVectors[1] = %d\n",i, dDebug);
-        printf("RdMatrixs[%d]->RdInsertionVectors[1] = %d\n",i, iDebug);
-        printf("\n");
-
-    }
-    printf("---------------------------\n");
-    printf("TBalgorithm!\n");
-    mDebug = (int)(CheckInxBitZero >> 60);
-    printf("CheckInxBitZero = %d\n\n", mDebug);
-    //---------------------------------*/
-    while ((PatternInx < PatternLength) & (TextInx > 0)){// & (0<CurError)) {
-        // ---------------------------------
-        /*mDebug = (int)(RdMatrixs[MatrixInx]->RdMatchVectors[CurError] >> 60);
-        printf("Match\n");
-        printf("TB_match = %d\n", mDebug);
-        mDebug = (int)(RdMatrixs[MatrixInx]->RdMismatchVectors[CurError] >> 60);
-        printf("Mismatch\n");
-        printf("TB_mismatch = %d\n", mDebug);
-        printf("CurError = %d\n", CurError);
-        printf("MatrixInx: %d\n\n", MatrixInx);*/
-        //printf("PatternInx: %d\n", PatternInx);
-        //printf("TextInx: %d\n", TextInx);
-        //mDebug = (int)(CheckInxBitZero >> 60);
-        //printf("CheckInxBitZero = %d\n\n", mDebug);
-        // ---------------------------------
+    while ((PatternInx < PatternLength) & (TextInx > 0)){
         if ((RdMatrixs[MatrixInx]->RdMatchVectors[CurError] & CheckInxBitZero) == 0) {  //Match
             PatternInx++;
             TextInx--;
-            //CheckInxBitZero = CheckInxBitZero << 1;
             CheckInxBitZero = CheckInxBitZero >> 1;
-            MatrixInx = (MatrixInx+1)%(PatternLength+1); //(MatrixInx+PatternLength)%(PatternLength+1);
+            MatrixInx = (MatrixInx+1)%(PatternLength+1);
             AlignmentCode[AlignmentInx] = 'M';
             AlignmentInx++;
         } else if (((RdMatrixs[MatrixInx]->RdDeletionVectors[CurError] & CheckInxBitZero) == 0) && (Balch<MAX_BALCH)){ //Deletion
             CurError--;
             Balch++;
             PatternInx++;
-            MatrixInx = (MatrixInx+1)%(PatternLength+1); //(MatrixInx+PatternLength)%(PatternLength+1);
+            MatrixInx = (MatrixInx+1)%(PatternLength+1);
             AlignmentCode[AlignmentInx] = 'D';
             AlignmentInx++;
         } else if (((RdMatrixs[MatrixInx]->RdInsertionVectors[CurError] & CheckInxBitZero) == 0) && (Balch<MAX_BALCH)){ //Insertion
             CurError--;
             Balch++;
             TextInx--;
-            //MatrixInx = (MatrixInx+1)%(PatternLength+1);
-            //CheckInxBitZero = CheckInxBitZero << 1;
             CheckInxBitZero = CheckInxBitZero >> 1;
             AlignmentCode[AlignmentInx] = 'I';
             AlignmentInx++;
-        } else if (((RdMatrixs[MatrixInx]->RdMismatchVectors[CurError] & CheckInxBitZero) == 0) && (Mismatch<MAX_MISMATCH)) { //Mismatch / Substitution
+        } else if (((RdMatrixs[MatrixInx]->RdMismatchVectors[CurError] & CheckInxBitZero) == 0) && (Mismatch<MAX_MISMATCH)) { //Mismatch/Substitution
             CurError--;
             Mismatch++;
             PatternInx++;
             TextInx--;
-            //CheckInxBitZero = CheckInxBitZero << 1;
             CheckInxBitZero = CheckInxBitZero >> 1;
-            MatrixInx = (MatrixInx+1)%(PatternLength+1); //(MatrixInx+PatternLength)%(PatternLength+1);
+            MatrixInx = (MatrixInx+1)%(PatternLength+1);
             AlignmentCode[AlignmentInx] = 'S';
             AlignmentInx++;
         } else {
             return NULL;
         }
     }
-    // ---------------------------------
-    //printf("---------------------------\n");
-    // ---------------------------------
     while (AlignmentInx < MAX_PATTERN_LENGTH+1) {
         AlignmentCode[AlignmentInx] = 'M';
         AlignmentInx++;
@@ -405,8 +325,8 @@ void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize){
 
 void printOffTargets(OffTarget *offTargetList, int NumOfOffTargets){
     FILE *OutputFile = fopen(FILE_PATH"/output.txt", "w");
-    fprintf(OutputFile,"OffFinder v2.2\n");
-    //printf("OffFinder v2.1\n");
+    fprintf(OutputFile,"OffFinder v2.3\n");
+    //printf("OffFinder v2.3\n");
     //fprintf(OutputFile,"Index\tDistance\tReverse\n");
     //printf("Index\tDistance\tMismatch\tBalch\tReverse\n");
     for (int i = 0; i < NumOfOffTargets; ++i) {
