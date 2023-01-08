@@ -17,9 +17,9 @@ enum RunMode {forward, reverse, both};
 #define MAX_PATTERN_LENGTH 23
 
 // distance parameters
-#define MAX_MISMATCH 3
+#define MAX_MISMATCH 6
 #define MAX_BALCH 1
-#define MAX_DISTANCE 4
+#define MAX_DISTANCE 7
 
 //structs
 typedef struct {
@@ -160,6 +160,13 @@ int OffFinderRunLoop(enum RunMode runMode,int PatternLength, unsigned long *Patt
     OffTarget *tempOffTarget = NULL;
     if ((runMode == forward) || (runMode == both)) {
         while (TextInx >= 0) { // Reverse = "+" (forward)
+            /*if (TextInx == 5901899) {
+                printf("\ndebug Target Inx: %d\n",5901899);
+                for (int deb = 0; deb < 24; deb++) {
+                    printf("%c", Text[5901899 + deb]);
+                }
+                printf("\n\n");
+            }*/
             if (Text[TextInx] == 'A' || Text[TextInx] == 'C' || Text[TextInx] == 'G' || Text[TextInx] == 'T') {
                 BitapCalc(PatternBitMaskVectors[CHAR_TO_MASK(Text[TextInx])], RdVectors, RdMatrixs[TextInx%(PatternLength+1)]);
                 tempOffTarget = CheckForMatch(RdVectors, TextInx, RdMatrixs, PatternLength);
@@ -240,6 +247,15 @@ OffTarget *TargetTB(int Inx, int PatternLength, RdMatrix **RdMatrixs, int Errors
             MatrixInx = (MatrixInx+1)%(PatternLength+1);
             AlignmentCode[AlignmentInx] = 'M';
             AlignmentInx++;
+        /*} else if (((RdMatrixs[MatrixInx]->RdMismatchVectors[CurError] & CheckInxBitZero) == 0) && (Mismatch<MAX_MISMATCH)) { //Mismatch/Substitution
+            CurError--;
+            Mismatch++;
+            PatternInx++;
+            TextInx--;
+            CheckInxBitZero = CheckInxBitZero >> 1;
+            MatrixInx = (MatrixInx+1)%(PatternLength+1);
+            AlignmentCode[AlignmentInx] = 'S';
+            AlignmentInx++;*/
         } else if (((RdMatrixs[MatrixInx]->RdDeletionVectors[CurError] & CheckInxBitZero) == 0) && (Balch<MAX_BALCH)){ //Deletion
             CurError--;
             Balch++;

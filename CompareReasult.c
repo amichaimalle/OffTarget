@@ -5,7 +5,7 @@
 
 #define CasOffinderPath "/Users/amichaim/Desktop/cas-offinder-3.0.0b3"
 #define OffinderPath "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
-#define MAX_TARGETS 5000
+#define MAX_TARGETS 10000
 
 #define MAX_INX 100000000
 
@@ -46,11 +46,22 @@ int main() {
     }
     printf("---------- Match Report ----------\n");
     printf("Offinder targets Found: %d\n", OffTargetListSize);
-    printf("CasOffinder Find [%d / %d] Off-targets\n", CasTargetListSize, OffTargetListSize);
+    printf("CasOffinder targets Found %d\n", CasTargetListSize);
     printf("Match: %d\tNon-Match: %d\n", MatchCounter,NonMatchCounter);
-    printf("---------- Non-Match Targets Inx List ----------\n");
+    printf("---------- Offinder Non-Match Targets ----------\n");
     for (i = 0; i < NonMatchCounter; ++i) {
         printf("%d\n", NonMatchList[i]);
+    }
+    printf("---------- Cas Non-Match Targets ---------------\n");
+    for (i = 0; i < CasTargetListSize; ++i) {
+        for (j = 0; j < OffTargetListSize; ++j) {
+            if (CasTargetInxList[i] == OffTargetInxList[j]) {
+                break;
+            }
+        }
+        if (j == OffTargetListSize){
+            printf("%d\n", CasTargetInxList[i]);
+        }
     }
     fclose(CasTargetFile);
     fclose(OffTargetFile);
