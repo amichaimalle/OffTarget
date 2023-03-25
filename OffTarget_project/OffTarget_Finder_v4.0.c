@@ -140,7 +140,6 @@ int main(int argc, char* argv[]){
     Guide **guideLst = InitializeGuidesInfo();
     OffTarget *OffTargetHead = NULL;
 
-
     while(ReadChromosome(Chromosome) == 0){ // run foe each chromosome
         chr_start = clock();
         printf("Start search in Chromosome %d\n", Chromosome->ChromosomeNum);
