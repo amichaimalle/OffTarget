@@ -9,7 +9,6 @@
 //        Definition of Constants
 //--------------------------------------------
 // run parameters
-#define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project"
 #define MAX_LINE_SIZE 100
 
 // pattern parameters
@@ -32,7 +31,6 @@ typedef struct {
 } OffTarget;
 
 typedef struct {
-    //unsigned long RdVectors;
     unsigned long *MatchVectors;
     unsigned long *MismatchVectors;
     unsigned long *InsertionVectors;
@@ -40,7 +38,7 @@ typedef struct {
 } BitapMatrix;
 
 typedef struct {
-    char *Read; // guide RNA - for result printing
+    char *Read;  // guide RNA - for result printing
     int Length;
     char Strand; // '+' - forward, '-' - reverse
     unsigned long BitMaskVectors[ALPHABET_SIZE];
