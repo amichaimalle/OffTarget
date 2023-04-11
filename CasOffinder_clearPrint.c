@@ -7,6 +7,7 @@
 #define MAX_MISMATCH 5
 #define MAX_BALCH 1
 #define MAX_PATTERN_LENGTH 23
+#define MAX_NUM_OF_OFF_TARGETS 1000000
 #define CasOffinderPath "/Users/amichaim/Desktop/cas-offinder-3.0.0b3"
 
 typedef struct {
@@ -33,8 +34,9 @@ int main(int argc, char* argv[]) {
     }
     FILE *OutputFile = fopen(CasOffinderPath"/output.txt", "r");
     FILE *FilteredOutputFile = fopen(CasOffinderPath"/output2.txt", "w");
-    OffTarget *offTargetList = (OffTarget *)malloc(800*sizeof(OffTarget));
+    OffTarget *offTargetList = (OffTarget *)malloc(MAX_NUM_OF_OFF_TARGETS*sizeof(OffTarget));
     int offTargetListSize = 0;
+    int num_of_off_targets = 0;
     char lineBuffer[300];
     fgets(lineBuffer,300,OutputFile);
     fputs(lineBuffer,FilteredOutputFile); // print the header line
@@ -45,15 +47,17 @@ int main(int argc, char* argv[]) {
             offTargetListSize = addOffTarget(offTargetList, offTargetListSize, lineBuffer, BalchFilter, MismatchFilter);
         }
     }
-    sortOffTargetLineByInx(offTargetList,offTargetListSize);
+    //sortOffTargetLineByInx(offTargetList,offTargetListSize);
     for (int i = 0; i < offTargetListSize; ++i) {
         if (offTargetList[i].Reverse == '+') {
             fprintf(FilteredOutputFile, "Inx : %10d\t Target: %23s\tdistance : %d\tMismatch : %d\tBalch : %d\tReverse : %c\n", offTargetList[i].inx,
                     offTargetList[i].TextTarget, offTargetList[i].distance, offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
+            num_of_off_targets++;
             //printf("Inx : %10d\tdistance : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].distance,
             //       offTargetList[i].Reverse);
         }
     }
+    printf("Number of off-targets: %d\n", num_of_off_targets);
     fclose(OutputFile);
     fclose(FilteredOutputFile);
     return 0;

@@ -16,9 +16,9 @@ enum RunMode {forward, reverse, both};
 
 
 // distance parameters
-#define MAX_MISMATCH 1
+#define MAX_MISMATCH 3
 #define MAX_BALCH 1
-#define MAX_DISTANCE 2
+#define MAX_DISTANCE 4
 
 //structs
 typedef struct {
@@ -33,7 +33,7 @@ typedef struct {
 //Prototypes
 int ReadTextFile(char *Text);
 int ReadPatternFile(char *Pattern);
-OffTarget *NWAligner(char *patternPtr, int patternLength, char *textWindowPtr, int textWindowLength, int maxMismatch, int maxBalch, int *alignmentInx, OffTarget *OffTargetPtr);
+OffTarget *NWAligner(char *patternPtr, int patternLength, char *textWindowPtr, int textWindowLength, int maxMismatch, int maxBalch, OffTarget *OffTargetPtr, int alignmentInx);
 int OffFinderRunLoop(char *patternPtr, int PatternLength, char *Text, int TextLength, OffTarget *offTargetList);
 void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize);
 void printOffTargets(OffTarget *offTargetList, int NumOfOffTargets);
@@ -69,57 +69,60 @@ int main(){
     return 0;
 }
 
-OffTarget *NWAligner(char *patternPtr, int patternLength, char *textWindowPtr, int textWindowLength, int maxMismatch, int maxBalch, int *alignmentInx, OffTarget *OffTargetPtr){ //, int mismatchIsPrio, int deletionIsPrio){
-    while (patternLength>0 && textWindowLength>0){
-        if (patternPtr[patternLength-1] == textWindowPtr[textWindowLength-1]){ // match
-            //patternLength--;
-            //textWindowLength--;
-            if (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch,maxBalch, alignmentInx, OffTargetPtr) != NULL) {  // insertion
-                OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'M';
-                return OffTargetPtr;
-            }
+OffTarget *NWAligner(char *patternPtr, int patternLength, char *textWindowPtr, int textWindowLength, int maxMismatch, int maxBalch, OffTarget *OffTargetPtr, int alignmentInx){ //, int mismatchIsPrio, int deletionIsPrio){
+    if (patternLength == 0 || textWindowLength == 0) { // brake condition
+        if (maxMismatch >= 0 && maxBalch >= 0) {
+            OffTargetPtr->mismatch = MAX_MISMATCH - maxMismatch;
+            OffTargetPtr->balch = MAX_BALCH - maxBalch;
+            OffTargetPtr->distance = OffTargetPtr->balch + OffTargetPtr->mismatch;
+            OffTargetPtr->alignmentCode[17] = '\0';
+            return OffTargetPtr;
         } else {
-            if (maxBalch>0){  // balch
-                if (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength, maxMismatch,maxBalch-1, alignmentInx, OffTargetPtr) != NULL) {  // insertion
-                    OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'I';
-                    return OffTargetPtr;
-                }
-                if (NWAligner(patternPtr, patternLength, textWindowPtr, textWindowLength-1, maxMismatch, maxBalch-1, alignmentInx, OffTargetPtr) != NULL) { // deletion
-                    OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'D';
-                    return OffTargetPtr;
-                }
-            }
-            if (maxMismatch>0){  // mismatch
-                if (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch-1, maxBalch, alignmentInx, OffTargetPtr) != NULL) {  // deletion
-                    OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'S';
-                    return OffTargetPtr;
-                }
-            }
+            return NULL;
         }
-        return NULL;        // no match
     }
-    OffTargetPtr->mismatch = MAX_MISMATCH - maxMismatch;
-    OffTargetPtr->balch = MAX_BALCH - maxBalch;
-    OffTargetPtr->distance = OffTargetPtr->balch + OffTargetPtr->mismatch;
-    *alignmentInx = 0;
-    return OffTargetPtr;
+    if (patternPtr[patternLength-1] == textWindowPtr[textWindowLength-1] &&
+        (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch,maxBalch, OffTargetPtr, alignmentInx+1) != NULL)){
+            OffTargetPtr->alignmentCode[alignmentInx] = 'M';
+            alignmentInx++;
+            return OffTargetPtr;
+    }
+    if (maxBalch > 0 &&
+            (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength, maxMismatch,maxBalch-1, OffTargetPtr, alignmentInx+1) != NULL)){
+            OffTargetPtr->alignmentCode[alignmentInx] = 'D';
+            alignmentInx++;
+            return OffTargetPtr;
+    }
+    if (maxBalch > 0 &&
+        (NWAligner(patternPtr, patternLength, textWindowPtr, textWindowLength-1, maxMismatch, maxBalch-1, OffTargetPtr, alignmentInx+1) != NULL)){
+            OffTargetPtr->alignmentCode[alignmentInx] = 'I';
+            alignmentInx++;
+            return OffTargetPtr;
+    }
+    if ((maxMismatch > 0) &&
+        (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch-1, maxBalch, OffTargetPtr, alignmentInx+1) != NULL)) {  // deletion
+            OffTargetPtr->alignmentCode[alignmentInx] = 'S';
+            alignmentInx++;
+            return OffTargetPtr;
+    }
+    return NULL;
 }
 
 int OffFinderRunLoop(char *patternPtr, int PatternLength, char *Text, int TextLength, OffTarget *offTargetList){
-    int NumOfOffTargets = 0, TextInx = TextLength - PatternLength;
-    int *alignmentInx = (int *)malloc(sizeof(int));
+    int NumOfOffTargets = 0, TextInx = 0; //TextLength - PatternLength;
+    //int *alignmentInx = (int *)malloc(sizeof(int));
     OffTarget *tempOffTarget = (OffTarget *)malloc(sizeof(OffTarget));
-    while (TextInx >= 0){
-        if (NWAligner(patternPtr, PatternLength, (Text+TextInx), PatternLength, MAX_MISMATCH, MAX_BALCH, alignmentInx, tempOffTarget) != NULL) {
+    while (TextInx < (TextLength - PatternLength)){
+        if (NWAligner(patternPtr, PatternLength, (Text+TextInx), PatternLength, MAX_MISMATCH, MAX_BALCH, tempOffTarget, 0) != NULL) {
             tempOffTarget->inx = TextInx;
-            tempOffTarget->alignmentCode[(*alignmentInx)++] = '\0';
+            //tempOffTarget->alignmentCode[alignmentInx] = '\0';
             offTargetList[NumOfOffTargets] = *tempOffTarget;
             NumOfOffTargets++;
         }
-        TextInx--;
+        TextInx++;
     }
     free(tempOffTarget);
-    free(alignmentInx);
+    //free(alignmentInx);
     return NumOfOffTargets;
 }
 
@@ -179,3 +182,77 @@ void printOffTargets(OffTarget *offTargetList, int NumOfOffTargets){
     }
     fclose(OutputFile);
 }
+
+
+/*OffTarget *NWAligner(char *patternPtr, int patternLength, char *textWindowPtr, int textWindowLength, int maxMismatch, int maxBalch, int *alignmentInx, OffTarget *OffTargetPtr){ //, int mismatchIsPrio, int deletionIsPrio){
+    while (patternLength>0 && textWindowLength>0){
+        if (patternPtr[patternLength-1] == textWindowPtr[textWindowLength-1]){ // match
+            //patternLength--;
+            //textWindowLength--;
+            if (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch,maxBalch, alignmentInx, OffTargetPtr) != NULL) {  // insertion
+                OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'M';
+                return OffTargetPtr;
+            }
+        } else {
+            if (maxBalch>0){  // balch
+                if (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength, maxMismatch,maxBalch-1, alignmentInx, OffTargetPtr) != NULL) {  // insertion
+                    OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'I';
+                    return OffTargetPtr;
+                }
+                if (NWAligner(patternPtr, patternLength, textWindowPtr, textWindowLength-1, maxMismatch, maxBalch-1, alignmentInx, OffTargetPtr) != NULL) { // deletion
+                    OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'D';
+                    return OffTargetPtr;
+                }
+            }
+            if (maxMismatch>0){  // mismatch
+                if (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch-1, maxBalch, alignmentInx, OffTargetPtr) != NULL) {  // deletion
+                    OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'S';
+                    return OffTargetPtr;
+                }
+            }
+        }
+        return NULL;        // no match
+    }
+    OffTargetPtr->mismatch = MAX_MISMATCH - maxMismatch;
+    OffTargetPtr->balch = MAX_BALCH - maxBalch;
+    OffTargetPtr->distance = OffTargetPtr->balch + OffTargetPtr->mismatch;
+    *alignmentInx = 0;
+    return OffTargetPtr;
+}*/
+
+/*
+ * OffTarget *NWAligner(char *patternPtr, int patternLength, char *textWindowPtr, int textWindowLength, int maxMismatch, int maxBalch, int *alignmentInx, OffTarget *OffTargetPtr){ //, int mismatchIsPrio, int deletionIsPrio){
+    if (patternLength == 0 || textWindowLength == 0) {
+        if (maxMismatch >= 0 && maxBalch >= 0) {
+            OffTargetPtr->mismatch = MAX_MISMATCH - maxMismatch;
+            OffTargetPtr->balch = MAX_BALCH - maxBalch;
+            OffTargetPtr->distance = OffTargetPtr->balch + OffTargetPtr->mismatch;
+            *alignmentInx = 0;
+            return OffTargetPtr;
+        } else {
+            return NULL;
+        }
+    }
+    if (patternPtr[patternLength-1] == textWindowPtr[textWindowLength-1] &&
+        (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch,maxBalch, alignmentInx, OffTargetPtr) != NULL)){
+        OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'M';
+        return OffTargetPtr;
+    }
+    if (maxBalch > 0 &&
+            (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength, maxMismatch,maxBalch-1, alignmentInx, OffTargetPtr) != NULL)){
+        OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'I';
+        return OffTargetPtr;
+    }
+    if (maxBalch > 0 &&
+            (NWAligner(patternPtr, patternLength, textWindowPtr, textWindowLength-1, maxMismatch, maxBalch-1, alignmentInx, OffTargetPtr) != NULL)){
+        OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'D';
+        return OffTargetPtr;
+    }
+    if ((maxMismatch > 0) &&
+        (NWAligner(patternPtr, patternLength-1, textWindowPtr, textWindowLength-1, maxMismatch-1, maxBalch, alignmentInx, OffTargetPtr) != NULL)) {  // deletion
+            OffTargetPtr->alignmentCode[(*alignmentInx)++] = 'S';
+            return OffTargetPtr;
+    }
+    return NULL;
+}
+ */

@@ -4,10 +4,14 @@
 #include <math.h>
 #include <time.h>
 
+//--------------------------------------------
+//        Definition of Constants
+//--------------------------------------------
 // run parameters
-#define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
+#define FILE_PATH "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project"
+//#define FILE_PATH "inout"
 #define ALLOCATE_MEMORY_FOR_TEXT_FILE 300000000 //300000000
-#define MAX_OFF_TARGETS 7000
+#define MAX_OFF_TARGETS 1000000
 #define MAX_LINE_SIZE 100
 enum RunMode {forward, reverse, both};
 
@@ -17,9 +21,9 @@ enum RunMode {forward, reverse, both};
 #define MAX_PATTERN_LENGTH 23
 
 // distance parameters
-#define MAX_MISMATCH 6
+#define MAX_MISMATCH 4
 #define MAX_BALCH 1
-#define MAX_DISTANCE 7
+#define MAX_DISTANCE 5
 
 //structs
 typedef struct {
@@ -40,7 +44,10 @@ typedef struct {
     unsigned long RdDeletionVectors[MAX_DISTANCE+1];
 } RdMatrix;
 
-//Prototypes
+//--------------------------------------------
+//        Prototypes
+//--------------------------------------------
+//
 int FileLength(FILE *file);
 int ReadTextFile(char *Text ,int *TextInx);
 int  SetPatternBitMaskVectors(unsigned long *PatternBitMaskVectors);
@@ -48,10 +55,7 @@ void InitRdVectorsAndMatrix(unsigned long *RdVectors, RdMatrix **RdMatrixs, int 
 int OffFinderRunLoop(enum RunMode runMode,int PatternLength, unsigned long *PatternBitMaskVectors, int TextInx, char *Text, unsigned long *RdVectors, RdMatrix **RdMatrixs, OffTarget *offTargetList);
 void BitapCalc(unsigned long PmVector, unsigned long *RdVectors, RdMatrix *RdMatrix);
 OffTarget *CheckForMatch(unsigned long *RdVectors, int inx, RdMatrix **RdMatrixs, int PatternLength, OffTarget *offTarget);
-OffTarget *TargetTB(int Inx, int PatternLength, RdMatrix **RdMatrixs, int Errors);
-
 OffTarget *DPTargetTB(int InitInx, int PatternLength, RdMatrix **RdMatrixs, int Errors, unsigned long CheckInxBitZero, char *AlignmentCode, int PatternInx, int TextInx, int AlignmentInx, int Mismatch, int Balch, int EnDeletion, int EnInsertion, OffTarget *offTarget);
-
 void insertOffTarget(OffTarget *offTargetList, OffTarget *offTarget, int offTargetListIndex);
 void sortOffTargetLintByInx(OffTarget *offTargetList, int offTargetListSize);
 int addOffTargetToList(OffTarget *offTargetList, int offTargetListSize, OffTarget *offTarget);
@@ -68,7 +72,7 @@ int main(){
     // Pattern variables & initialization
     unsigned long PatternBitMaskVectors[ALPHABET_SIZE];
     unsigned long RdVectors[MAX_DISTANCE+1];
-    int PatternLength = SetPatternBitMaskVectors(PatternBitMaskVectors);;
+    int PatternLength = SetPatternBitMaskVectors(PatternBitMaskVectors);
     //  initialize the Rd & OffTarget Parameters
     RdMatrix **RdMatrixs = (RdMatrix **)malloc((PatternLength+1)*sizeof(RdMatrix *));
     InitRdVectorsAndMatrix(RdVectors, RdMatrixs, PatternLength);
@@ -84,6 +88,8 @@ int main(){
     double elapsed1 = (double)(end - mid) / CLOCKS_PER_SEC;
     printf("run phase done, time for run stage: %f seconds\n", elapsed1);
 
+    printf("number of target found - %d\n", NumOfOffTargets);
+
     sortOffTargetLintByInx(offTargetList,NumOfOffTargets);
     printOffTargets(offTargetList, NumOfOffTargets);
     FreeRdMatrixs(RdMatrixs, PatternLength);
@@ -93,7 +99,7 @@ int main(){
 }
 
 int ReadTextFile(char *Text ,int *TextInx) {
-    FILE *TextFile = fopen(FILE_PATH"/text.txt", "r");
+    FILE *TextFile = fopen(FILE_PATH"/chr1.txt", "r");
     char lineBuffer[MAX_LINE_SIZE];
     while (fscanf(TextFile, "%[^\n]c", lineBuffer) != EOF) { //read until new line
         fscanf(TextFile, "%*c"); //skip the new line '\n'
@@ -116,7 +122,7 @@ int FileLength(FILE *file){ // no bug but slower function - can be faster if the
 }
 
 int SetPatternBitMaskVectors(unsigned long *PatternBitMaskVectors){
-    FILE *PatternFile = fopen(FILE_PATH"/pattern.txt", "r");
+    FILE *PatternFile = fopen(FILE_PATH"/guides.txt", "r");
     int i, PatternLength = FileLength(PatternFile);
     char letter;
     unsigned long MaskVector = (unsigned long)pow(2,sizeof(unsigned long)*8-1);
@@ -340,7 +346,7 @@ void printOffTargets(OffTarget *offTargetList, int NumOfOffTargets){
     //printf("Index\tDistance\tMismatch\tBalch\tReverse\n");
     for (int i = 0; i < NumOfOffTargets; ++i) {
         fprintf(OutputFile, "Inx : %10d\tTarget: %24s\talignment: %24s\tdistance : %d\tMismatch : %d\tBalch : %d\tReverse : %c\n", offTargetList[i].inx,
-               offTargetList[i].TextTarget, offTargetList[i].alignmentCode, offTargetList[i].distance, offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
+                offTargetList[i].TextTarget, offTargetList[i].alignmentCode, offTargetList[i].distance, offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
         //printf("Inx : %10d\t Target: %24s\t alignment: %24s\t distance : %d\tMismatch : %d\tBalch : %d\tReverse : %c\n", offTargetList[i].inx, offTargetList[i].TextTarget,
         //       offTargetList[i].alignmentCode, offTargetList[i].distance, offTargetList[i].mismatch,  offTargetList[i].balch, offTargetList[i].Reverse);
     }

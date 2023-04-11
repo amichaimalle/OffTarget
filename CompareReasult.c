@@ -7,10 +7,11 @@
 #define OffinderPath "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/inout"
 #define MAX_TARGETS 10000
 
-#define MAX_INX 100000000
+#define MAX_INX 10000000000
 
 int main() {
     FILE *CasTargetFile = fopen(CasOffinderPath"/output2.txt", "r");
+    //FILE *CasTargetFile = fopen(OffinderPath"/naive_output.txt", "r");
     FILE *OffTargetFile = fopen(OffinderPath"/output.txt", "r");
     int CasTargetInxList[MAX_TARGETS];
     int OffTargetInxList[MAX_TARGETS];
