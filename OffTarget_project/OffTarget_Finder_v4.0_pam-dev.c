@@ -35,9 +35,10 @@ typedef struct {
 
 typedef struct {
     char* Read;
+    char* ReverseRead;
     int Length;
     int CurrentMismatch;
-    char Strand; // '+' - forward, '-' - reverse
+    char CurrentStrand; // '+' - forward, '-' - reverse
     unsigned long BitMaskVectors[ALPHABET_SIZE];
     unsigned long *DistanceVectors;
 } Pam;
@@ -236,32 +237,32 @@ Pam *ReadPamInfo(char *PamRead) {
     Pam *PamInfo = (Pam *)malloc(sizeof(Pam));
     PamInfo->Length = (int) strlen(PamRead);
     PamInfo->Read = (char *) malloc(PamInfo->Length * sizeof(char)+1);
-    //strcpy(PamInfo->Read, PamRead);
+    PamInfo->ReverseRead = (char *) malloc(PamInfo->Length * sizeof(char)+1);
+    strcpy(PamInfo->Read, PamRead);
     for (int j=0; j<PamInfo->Length; j++){
-        PamInfo->Read[j] = COMPLEMENT_NUCLEOTIDE(PamRead[PamInfo->Length - j - 1]);
+        PamInfo->ReverseRead[j] = COMPLEMENT_NUCLEOTIDE(PamRead[PamInfo->Length - j - 1]);
     }
     PamInfo->Read[PamInfo->Length] = '\0';
+    PamInfo->ReverseRead[PamInfo->Length] = '\0';
     PamInfo->CurrentMismatch = 0; // always 0 for max_pam_mismatch==0;
     PamInfo->DistanceVectors = (unsigned long *) malloc(max_pam_mismatch+1 * sizeof(unsigned long));
     for (int i = 0; i <= max_pam_mismatch; i++) {
         PamInfo->DistanceVectors[i] = -1;
         PamInfo->DistanceVectors[i] <<= (sizeof(unsigned long) * 8 - PamInfo->Length);
     }
-    //PamInfo->Strand = '+';
-    InitializePamInfoMaskVectors(PamInfo);
     return PamInfo;
 }
 
 void InitializePamInfoMaskVectors(Pam *PamInfo) {
+    char *PamStrandRead = (PamInfo->CurrentStrand == '+') ? PamInfo->Read : PamInfo->ReverseRead;
     unsigned long MaskVector;
     unsigned long initPMValue = (MsbMaskVectorConst >> (PamInfo->Length-1))-1;// 00111111 vector
     for (int i = 0; i < ALPHABET_SIZE; i++) {
         PamInfo->BitMaskVectors[i] = initPMValue;
     }
-    //MaskVector = (PamInfo->Strand == '+') ? MsbMaskVectorConst >> (PamInfo->Length-1) : MsbMaskVectorConst;
-    MaskVector = MsbMaskVectorConst;
+    MaskVector = (PamInfo->CurrentStrand == '+') ? MsbMaskVectorConst >> (PamInfo->Length-1) : MsbMaskVectorConst;
     for (int i=0; i<PamInfo->Length; i++){
-        switch (PamInfo->Read[i]) {
+        switch (PamStrandRead[i]) {
             case 'A':
                 PamInfo->BitMaskVectors[CHAR_TO_MASK('A')] |= MaskVector;
                 break;
@@ -281,8 +282,7 @@ void InitializePamInfoMaskVectors(Pam *PamInfo) {
                 PamInfo->BitMaskVectors[CHAR_TO_MASK('T')] |= MaskVector;
                 break;
         }
-        //MaskVector = (PamInfo->Strand == '+') ? MaskVector << 1 : MaskVector >> 1;
-        MaskVector = MaskVector >> 1;
+        MaskVector = (PamInfo->CurrentStrand == '+') ? MaskVector << 1 : MaskVector >> 1;
     }
     for (int i=0;i<ALPHABET_SIZE;i++){
         PamInfo->BitMaskVectors[i] = ~PamInfo->BitMaskVectors[i];
@@ -414,6 +414,10 @@ void OffFinderMainLoop(Guide **guideLst, ChromosomeInfo *Chromosome, Pam *PamInf
     //int test0=0, test1=0;
     OffTarget *tempOffTarget = (OffTarget *)malloc(sizeof(OffTarget));
     // ---- run reverse guide ----
+    if (max_pam_mismatch != -1) {
+        PamInfo->CurrentStrand = '-'; // init strand to search
+        InitializePamInfoMaskVectors(PamInfo);
+    }
     while (Chromosome->TextInx > ChromosomeStartInx) { // run from tail to head of chromosome
         Nucleotide = Chromosome->Text[Chromosome->TextInx];
         if ((Nucleotide == 'A' || Nucleotide == 'C' || Nucleotide == 'G' || Nucleotide == 'T')) { // if nucleotide is valid
@@ -443,6 +447,10 @@ void OffFinderMainLoop(Guide **guideLst, ChromosomeInfo *Chromosome, Pam *PamInf
         Chromosome->TextInx--;
     }
     // ---- run forward guide ----
+    if (max_pam_mismatch != -1) {
+        PamInfo->CurrentStrand = '+'; // init strand to search
+        InitializePamInfoMaskVectors(PamInfo);
+    }
     Chromosome->TextInx = 0;
     while (Chromosome->TextInx < ChromosomeEndInx) { // run from tail to head of chromosome
         Nucleotide = Chromosome->Text[Chromosome->TextInx];
@@ -573,7 +581,6 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, unsigned int MatrixI
 }
 
 void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead, OffTarget *offTargetToAdd){
-    offTargetToAdd->ChromosomePosition = Chromosome->TextInx;
     offTargetToAdd->ChromosomeNum = Chromosome->ChromosomeNum;
     offTargetToAdd->Strand = GuideInfo->Strand;
     offTargetToAdd->Guide = (char *)malloc((GuideInfo->Length+1)*sizeof(char));
@@ -591,9 +598,10 @@ void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamIn
 
 void DecodePam(Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget){
     offTarget->PamAlignment = (char *)malloc((PamInfo->Length+1)*sizeof(char));
-    int AlignmentInx = Chromosome->TextInx-PamInfo->Length;
+    int AlignmentInx = (PamInfo->CurrentStrand=='+') ? Chromosome->TextInx+1 : Chromosome->TextInx-PamInfo->Length;
+    char *PamStrandRead = (PamInfo->CurrentStrand == '+') ? PamInfo->Read : PamInfo->ReverseRead;
     for (int inx = 0; inx < PamInfo->Length; inx++) {
-        if (PamInfo->Read[inx] != Chromosome->Text[AlignmentInx+inx]) {
+        if (PamStrandRead[inx] != Chromosome->Text[AlignmentInx+inx]) {
             offTarget->PamAlignment[inx] = tolower(Chromosome->Text[AlignmentInx+inx]);
         } else {
             offTarget->PamAlignment[inx] = Chromosome->Text[AlignmentInx+inx];
@@ -640,6 +648,7 @@ void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *of
         GuideInfo->EncodeAlignment[i] = 0;
     }
     GuideAlignment[AlignmentLength] = '\0';
+    offTarget->ChromosomePosition = (GuideInfo->Strand == '+') ? Chromosome->TextInx-AlignmentLength+1 : Chromosome->TextInx;
     offTarget->SiteAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char)); // +1?!
     offTarget->GuideAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char));
     strcpy(offTarget->GuideAlignment, GuideAlignment);
@@ -733,6 +742,7 @@ void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, O
     // free pam
     if (max_pam_mismatch != -1) {
         free(PamInfo->Read);
+        free(PamInfo->ReverseRead);
         free(PamInfo->DistanceVectors);
         free(PamInfo);
     }
