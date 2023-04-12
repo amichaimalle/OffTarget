@@ -15,6 +15,7 @@
 #define ALPHABET_SIZE 4
 #define CHAR_TO_MASK(char) (char == 'A' ? 0 : char == 'C' ? 1 : char == 'G' ? 2 : char == 'T' ? 3 : 4)
 #define COMPLEMENT_NUCLEOTIDE(char) (char == 'A' ? 'T' : char == 'C' ? 'G' : char == 'G' ? 'C' : char == 'T' ? 'A' : char)
+#define NEXT_MATRIX_INX(char, int)  (char == '+' ? int - 1 : int + 1)
 
 //structs
 typedef struct {
@@ -39,7 +40,6 @@ typedef struct {
     char Strand; // '+' - forward, '-' - reverse
     unsigned long BitMaskVectors[ALPHABET_SIZE];
     unsigned long *DistanceVectors;
-//    int *EncodeAlignment;
 } Pam;
 
 typedef struct {
@@ -80,7 +80,7 @@ int max_mismatch = -1;
 int max_bulge = -1;
 int max_distance = -1;
 // file & memory parameters
-char *output_file_path = "./output.txt";
+char *output_file_path = "./pam_output.txt";
 char *chromosome_file_path = "./chr1.txt";
 char *guide_file_path = "./guides.txt";
 long int max_chromosome_size = 300000000;
@@ -107,12 +107,12 @@ int PamCheck(Pam *PamInfo, char PamNucleotide);
 void DistanceVectorCalc(unsigned long BitMaskVector, unsigned long *DistanceVectors, BitapMatrix *BitapMatrix);
 int CheckForAlignment(Guide *GuideInfo, OffTarget *offTarget, int ChromosomeInx);
 // OffTarget TraceBack
-int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsigned long MaskBitVector, int GuideInx, int SiteInx, int CurDistance, int CurMismatch, int CurBulge, int AlignmentInx);
+int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, unsigned int MatrixInx, unsigned long MaskBitVector, int GuideInx, int SiteInx, int CurDistance, int CurMismatch, int CurBulge, int AlignmentInx);
 void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead, OffTarget *offTargetToAdd);
 void DecodePam(Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget);
 void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget);
 // Post Processing
-void PrintOffTargets(OffTarget *OffTargetHead);
+void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead);
 void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, OffTarget *OffTargetHead);
 void printReadMe();
 
@@ -121,6 +121,7 @@ void printReadMe();
 //--------------------------------------------
 
 int main(int argc, char* argv[]){
+    MsbMaskVectorConst = (unsigned long)pow(2,sizeof(unsigned long)*8-1); // 10000000 vector - to reduce calculation
     Pam *PamInfo;
     for (int i = 1; i < argc; i+=2) {
         if (strcmp(argv[i], "-m") == 0 && i + 1 < argc) {
@@ -167,7 +168,6 @@ int main(int argc, char* argv[]){
     clock_t chr_start;
     double elapsed;
 
-    MsbMaskVectorConst = (unsigned long)pow(2,sizeof(unsigned long)*8-1);; // 10000000 vector - to reduce calculation
     ChromosomeInfo *Chromosome = (ChromosomeInfo *) malloc(sizeof(ChromosomeInfo));
     Guide **guideLst = InitializeGuidesInfo();
     OffTarget *OffTargetHead = NULL;
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]){
     elapsed = (double) (clock() - start) / CLOCKS_PER_SEC;
     printf("Search is done. total search time: %f seconds\n", elapsed);
 
-    PrintOffTargets(OffTargetHead);
+    PrintOffTargets(OffTargetHead, PamInfo->Read);
     FreeAllMemory(Chromosome, PamInfo, guideLst, OffTargetHead);
     return 0;
 }
@@ -236,7 +236,10 @@ Pam *ReadPamInfo(char *PamRead) {
     Pam *PamInfo = (Pam *)malloc(sizeof(Pam));
     PamInfo->Length = (int) strlen(PamRead);
     PamInfo->Read = (char *) malloc(PamInfo->Length * sizeof(char)+1);
-    strcpy(PamInfo->Read, PamRead);
+    //strcpy(PamInfo->Read, PamRead);
+    for (int j=0; j<PamInfo->Length; j++){
+        PamInfo->Read[j] = COMPLEMENT_NUCLEOTIDE(PamRead[PamInfo->Length - j - 1]);
+    }
     PamInfo->Read[PamInfo->Length] = '\0';
     PamInfo->CurrentMismatch = 0; // always 0 for max_pam_mismatch==0;
     PamInfo->DistanceVectors = (unsigned long *) malloc(max_pam_mismatch+1 * sizeof(unsigned long));
@@ -370,7 +373,7 @@ void InitializeBitMaskVectors(Guide *GuideInfo){ // TODO: reverse all bit! msb i
             GuideInfo->BitMaskVectors[CHAR_TO_MASK('G')] |= MaskVector;
         } else if (GuideInfo->Read[i] == 'C'){
             GuideInfo->BitMaskVectors[CHAR_TO_MASK('C')] |= MaskVector;
-        };
+        }
         MaskVector = (GuideInfo->Strand == '+') ? MaskVector << 1 : MaskVector >> 1;
     }
     for (int i=0;i<ALPHABET_SIZE;i++){
@@ -405,16 +408,26 @@ void InitializeBitVectorsAndMatrix(Guide *GuideInfo){
 void OffFinderMainLoop(Guide **guideLst, ChromosomeInfo *Chromosome, Pam *PamInfo, OffTarget **OffTargetHead){
     char Nucleotide, PamNucleotide;
     int ValidPam = 1; // default is  if pam is null
+    int ChromosomeEndInx = (PamInfo->Read==NULL) ? Chromosome->TextInx : Chromosome->TextInx - PamInfo->Length;
+    int ChromosomeStartInx = (PamInfo->Read==NULL) ? 0 : PamInfo->Length;
     unsigned long BitMaskVector;
+    //int test0=0, test1=0;
     OffTarget *tempOffTarget = (OffTarget *)malloc(sizeof(OffTarget));
-    while (Chromosome->TextInx > 0) { // run from tail to head of chromosome
+    // ---- run reverse guide ----
+    while (Chromosome->TextInx > ChromosomeStartInx) { // run from tail to head of chromosome
         Nucleotide = Chromosome->Text[Chromosome->TextInx];
         if ((Nucleotide == 'A' || Nucleotide == 'C' || Nucleotide == 'G' || Nucleotide == 'T')) { // if nucleotide is valid
             if (max_pam_mismatch != -1) {
                 PamNucleotide = Chromosome->Text[Chromosome->TextInx- PamInfo->Length];
                 ValidPam = PamCheck(PamInfo, PamNucleotide);
+                /*if (ValidPam == 0) {
+                    test0++;
+                } else {
+                    test1++;
+                    printf("test1 | pam_inx=%2d, text_inx=%2d\n",Chromosome->TextInx- PamInfo->Length, Chromosome->TextInx);
+                }*/
             }
-            for (int GuideNum = 0; GuideNum < NumOfGuides; GuideNum++) {
+            for (int GuideNum = 1; GuideNum < NumOfGuides; GuideNum+=2) { // run on all reverse guides
                 BitMaskVector = guideLst[GuideNum]->BitMaskVectors[CHAR_TO_MASK(Nucleotide)];
                 //TODO: efficient: 1. calc MatrixInx once for all guide  2. pass init matrix value to TB here.
                 DistanceVectorCalc(BitMaskVector, guideLst[GuideNum]->DistanceVectors,
@@ -429,19 +442,44 @@ void OffFinderMainLoop(Guide **guideLst, ChromosomeInfo *Chromosome, Pam *PamInf
         }
         Chromosome->TextInx--;
     }
+    // ---- run forward guide ----
+    Chromosome->TextInx = 0;
+    while (Chromosome->TextInx < ChromosomeEndInx) { // run from tail to head of chromosome
+        Nucleotide = Chromosome->Text[Chromosome->TextInx];
+        if ((Nucleotide == 'A' || Nucleotide == 'C' || Nucleotide == 'G' || Nucleotide == 'T')) { // if nucleotide is valid
+            if (max_pam_mismatch != -1) {
+                PamNucleotide = Chromosome->Text[Chromosome->TextInx + PamInfo->Length];
+                ValidPam = PamCheck(PamInfo, PamNucleotide);
+            }
+            for (int GuideNum = 0; GuideNum < NumOfGuides; GuideNum+=2) { // run on all forward guides
+                BitMaskVector = guideLst[GuideNum]->BitMaskVectors[CHAR_TO_MASK(Nucleotide)];
+                DistanceVectorCalc(BitMaskVector, guideLst[GuideNum]->DistanceVectors,
+                                   guideLst[GuideNum]->LastBitapMatrices[Chromosome->TextInx %(guideLst[GuideNum]->Length + 1)]);
+                if (ValidPam) {
+                    if (CheckForAlignment(guideLst[GuideNum], tempOffTarget, Chromosome->TextInx) == 0) {
+                        AddOffTargetToList(guideLst[GuideNum], Chromosome, PamInfo, OffTargetHead, tempOffTarget);
+                        tempOffTarget = (OffTarget *) malloc(sizeof(OffTarget));
+                    }
+                }
+            }
+        }
+        Chromosome->TextInx++;
+    }
+    //printf("\ntest0 = %d, test1 = %d\n\n", test0, test1);
     free(tempOffTarget);
 }
 
 int PamCheck(Pam *PamInfo, char PamNucleotide){
     unsigned long BitMaskVector = PamInfo->BitMaskVectors[CHAR_TO_MASK(PamNucleotide)];
+    unsigned long MatchBitMask = MsbMaskVectorConst;// >> (PamInfo->Length - 1);
     if (max_pam_mismatch == 0){ // default common case
         PamInfo->DistanceVectors[0] = (PamInfo->DistanceVectors[0]<<1 | BitMaskVector);
-        if ((PamInfo->DistanceVectors[0] & MsbMaskVectorConst) == 0) {return 1;}
+        if ((PamInfo->DistanceVectors[0] & MatchBitMask) == 0) {return 1;}
     } else {
         unsigned long MatchVector, MismatchVector;
         unsigned long LastDistanceVectors = PamInfo->DistanceVectors[0];
         PamInfo->DistanceVectors[0] = (PamInfo->DistanceVectors[0]<<1 | BitMaskVector);
-        for (int d=1;d<=max_distance;d++) {
+        for (int d=1;d<=max_pam_mismatch;d++) {
             MatchVector = (PamInfo->DistanceVectors[d]<<1 | BitMaskVector);
             MismatchVector = LastDistanceVectors<<1;
             LastDistanceVectors = PamInfo->DistanceVectors[d];  // save RdMinus1Vector for next iteration
@@ -449,7 +487,7 @@ int PamCheck(Pam *PamInfo, char PamNucleotide){
         }
     }
     for (int Distance = 0; Distance <= max_pam_mismatch; Distance++) {
-        if ((PamInfo->DistanceVectors[Distance] & MsbMaskVectorConst) == 0) { // Edit distance match threshold
+        if ((PamInfo->DistanceVectors[Distance] & MatchBitMask) == 0) { // Edit distance match threshold
             PamInfo->CurrentMismatch = Distance;
             return 1;
         }
@@ -493,17 +531,17 @@ int CheckForAlignment(Guide *GuideInfo, OffTarget *offTarget, int ChromosomeInx)
 //           TraceBack functions
 //--------------------------------------------
 
-int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsigned long MaskBitVector, int GuideInx, int SiteInx, int CurDistance, int CurMismatch, int CurBulge, int AlignmentInx){
+int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, unsigned int MatrixInx, unsigned long MaskBitVector, int GuideInx, int SiteInx, int CurDistance, int CurMismatch, int CurBulge, int AlignmentInx){
     while ((GuideInx <= GuideInfo->Length) & (SiteInx >= 0)){
         if ((GuideInfo->LastBitapMatrices[MatrixInx]->MatchVectors[CurDistance] & MaskBitVector) == 0) { //Match
             GuideInx++;
             SiteInx--;
             MaskBitVector = MaskBitVector >> 1;
-            MatrixInx=(MatrixInx+1)%(GuideInfo->Length+1);
+            MatrixInx=(NEXT_MATRIX_INX(GuideInfo->Strand, MatrixInx)%(GuideInfo->Length+1));
             GuideInfo->EncodeAlignment[AlignmentInx++] = 1; // Match
         } else { // check for mismatch
             if (CurMismatch < max_mismatch & (GuideInfo->LastBitapMatrices[MatrixInx]->MismatchVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+1), MaskBitVector >> 1,
+                if (TargetTraceBack(GuideInfo, offTarget, (NEXT_MATRIX_INX(GuideInfo->Strand, MatrixInx))%(GuideInfo->Length+1), MaskBitVector >> 1,
                                     GuideInx+1, SiteInx-1, CurDistance-1, CurMismatch+1, CurBulge, AlignmentInx+1)==0){
                     GuideInfo->EncodeAlignment[AlignmentInx] = 2; // Mismatch
                     return 0;
@@ -517,7 +555,7 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
                 }
             } // check for insertion
             if (CurBulge < max_bulge & (GuideInfo->LastBitapMatrices[MatrixInx]->DeletionVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+1), MaskBitVector,
+                if (TargetTraceBack(GuideInfo, offTarget, (NEXT_MATRIX_INX(GuideInfo->Strand, MatrixInx))%(GuideInfo->Length+1), MaskBitVector,
                                     GuideInx+1, SiteInx, CurDistance-1, CurMismatch, CurBulge+1, AlignmentInx+1)==0){
                     GuideInfo->EncodeAlignment[AlignmentInx] = 4; // Insertion
                     return 0;
@@ -553,11 +591,12 @@ void AddOffTargetToList(Guide *GuideInfo, ChromosomeInfo *Chromosome, Pam *PamIn
 
 void DecodePam(Pam *PamInfo, ChromosomeInfo *Chromosome, OffTarget *offTarget){
     offTarget->PamAlignment = (char *)malloc((PamInfo->Length+1)*sizeof(char));
+    int AlignmentInx = Chromosome->TextInx-PamInfo->Length;
     for (int inx = 0; inx < PamInfo->Length; inx++) {
-        if (PamInfo->Read[inx] != offTarget->PamAlignment[inx]) {
-            offTarget->PamAlignment[inx] = tolower(Chromosome->Text[Chromosome->TextInx+inx]);
+        if (PamInfo->Read[inx] != Chromosome->Text[AlignmentInx+inx]) {
+            offTarget->PamAlignment[inx] = tolower(Chromosome->Text[AlignmentInx+inx]);
         } else {
-            offTarget->PamAlignment[inx] = Chromosome->Text[Chromosome->TextInx+inx];
+            offTarget->PamAlignment[inx] = Chromosome->Text[AlignmentInx+inx];
         }
     }
     offTarget->PamAlignment[PamInfo->Length] = '\0';
@@ -576,20 +615,23 @@ void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *of
     for (int i=0; i<AlignmentLength; i++) {
         switch (GuideInfo->EncodeAlignment[i]){
             case 1: // Match
-                SiteAlignment[i] = Chromosome->Text[SiteInx++];
                 GuideAlignment[i] = GuideInfo->Read[GuideInx++];
+                SiteAlignment[i] = Chromosome->Text[SiteInx];
+                (GuideInfo->Strand == '+') ? SiteInx-- : SiteInx++;
                 break;
             case 2: // Mismatch
-                SiteAlignment[i] = (char)tolower(Chromosome->Text[SiteInx++]);// + 32;
                 GuideAlignment[i] = GuideInfo->Read[GuideInx++];
+                SiteAlignment[i] = (char)tolower(Chromosome->Text[SiteInx]);// + 32;
+                (GuideInfo->Strand == '+') ? SiteInx-- : SiteInx++;
                 break;
             case 3: // Deletion
-                SiteAlignment[i] = '-';
                 GuideAlignment[i] = GuideInfo->Read[GuideInx++];
+                SiteAlignment[i] = '-';
                 break;
             case 4: // Insertion
-                SiteAlignment[i] = Chromosome->Text[SiteInx++];
                 GuideAlignment[i] = '-';
+                SiteAlignment[i] = Chromosome->Text[SiteInx];
+                (GuideInfo->Strand == '+') ? SiteInx-- : SiteInx++;
                 break;
             default:
                 printf("Error in DecodeAlignment\n");
@@ -597,19 +639,31 @@ void DecodeAlignment(Guide *GuideInfo, ChromosomeInfo *Chromosome, OffTarget *of
         }
         GuideInfo->EncodeAlignment[i] = 0;
     }
-    SiteAlignment[AlignmentLength] = '\0';
     GuideAlignment[AlignmentLength] = '\0';
     offTarget->SiteAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char)); // +1?!
-    strcpy(offTarget->SiteAlignment, SiteAlignment);
     offTarget->GuideAlignment = (char *)malloc((AlignmentLength+1)*sizeof(char));
     strcpy(offTarget->GuideAlignment, GuideAlignment);
+    if (GuideInfo->Strand == '+') {
+        for (int i=0; i<=AlignmentLength; i++) {
+            offTarget->SiteAlignment[i] = SiteAlignment[AlignmentLength-i-1];
+        }
+        offTarget->SiteAlignment[AlignmentLength] = '\0';
+    } else {
+        SiteAlignment[AlignmentLength] = '\0';
+        strcpy(offTarget->SiteAlignment, SiteAlignment);
+    }
+
 }
 
 //--------------------------------------------
 //         Post Processing functions
 //--------------------------------------------
 
-void PrintOffTargets(OffTarget *OffTargetHead){
+void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
+    if (NumOfOffTargets == 0) {
+        printf("No off-targets found\n");
+        return;
+    }
     FILE *OutputFile = fopen(output_file_path, "w");
     if (OutputFile == NULL) {
         printf("Error opening file output file");
@@ -642,6 +696,9 @@ void PrintOffTargets(OffTarget *OffTargetHead){
     printf("Output Summery:\n");
     printf("Number of guides (2 Strand per guide):%d\n", NumOfGuides/2);
     printf("Number of chromosomes: %d\n", NumOfChromosomes);
+    if (max_pam_mismatch != -1) {
+        printf("PAM: %s\n", PamRead);
+    }
     printf("Number of off-targets found: %d\n\n", NumOfOffTargets);
 }
 
