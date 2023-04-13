@@ -337,7 +337,7 @@ void DistanceVectorCalc(unsigned long BitMaskVector, unsigned long *DistanceVect
     unsigned long LastDistanceVectors = DistanceVectors[0];
     DistanceVectors[0] = (DistanceVectors[0]<<1 | BitMaskVector);
     BitapMatrix->MatchVectors[0] = DistanceVectors[0];
-    for (int d=1;d<=max_distance;d++) {
+    for (int d=1;d<=max_distance;d++){
         MatchVector = (DistanceVectors[d]<<1 | BitMaskVector);
         MismatchVector = LastDistanceVectors<<1;
         DeletionVector = LastDistanceVectors;
