@@ -9,13 +9,11 @@
 #define MAX_BULGE 2
 
 int main() {
-    int a = 8;
-    while (a >= -1){
-        if (a) {
-            printf("a = %d\n",a);
-        }
-        a--;
-    }
+    char b = 0x11;
+   for (int i=0; i<4; i++){
+         printf("%d\n",b);
+         b = b << 1;
+   }
     return 0;
 }
 
