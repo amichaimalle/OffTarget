@@ -7,13 +7,10 @@
 #include <math.h>
 
 #define MAX_BULGE 2
+#define MASK_TO_CHAR(mask) (mask&0x88 ? 'A' : mask&0x44 ? 'C' : mask&0x22 ? 'G' : mask&0x11 ? 'T' : 'N')
 
 int main() {
-    char b = 0x11;
-   for (int i=0; i<4; i++){
-         printf("%d\n",b);
-         b = b << 1;
-   }
+    printf("%c", MASK_TO_CHAR(0x82&0x0f));
     return 0;
 }
 
