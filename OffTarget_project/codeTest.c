@@ -10,7 +10,9 @@
 #define MASK_TO_CHAR(mask) (mask&0x88 ? 'A' : mask&0x44 ? 'C' : mask&0x22 ? 'G' : mask&0x11 ? 'T' : 'N')
 
 int main() {
-    printf("%c", MASK_TO_CHAR(0x82&0x0f));
+    unsigned long mask = 17592186044416;
+    unsigned long match = 18446726481523507200;
+
     return 0;
 }
 

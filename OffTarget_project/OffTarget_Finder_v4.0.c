@@ -291,7 +291,7 @@ void InitializeBitVectorsAndMatrix(Guide *GuideInfo){
         GuideInfo->DistanceVectors[i] = -1;
         GuideInfo->DistanceVectors[i] = GuideInfo->DistanceVectors[i] << (sizeof(unsigned long) * 8 - GuideInfo->Length);
     }
-    GuideInfo->LastBitapMatrices = (BitapMatrix **)malloc((GuideInfo->Length+1)*sizeof(BitapMatrix *));
+    GuideInfo->LastBitapMatrices = (BitapMatrix **)malloc((GuideInfo->Length+max_bulge)*sizeof(BitapMatrix *));
     for (int i = 0; i < GuideInfo->Length + 1; i++) {
         GuideInfo->LastBitapMatrices[i] = (BitapMatrix *) malloc(sizeof(BitapMatrix));
         GuideInfo->LastBitapMatrices[i]->MatchVectors = (unsigned long *)malloc(sizeof(unsigned long)*(max_distance+1));
@@ -320,7 +320,7 @@ void OffFinderMainLoop(Guide **guideLst, ChromosomeInfo *Chromosome, OffTarget *
                 BitMaskVector =  guideLst[GuideInx]->BitMaskVectors[CHAR_TO_MASK(nucleotide)];
                 //TODO: efficient: 1. calc MatrixInx once for all guide 2. pass init matrix value to TB here.
                 DistanceVectorCalc(BitMaskVector, guideLst[GuideInx]->DistanceVectors,
-                                   guideLst[GuideInx]->LastBitapMatrices[Chromosome->TextInx%(guideLst[GuideInx]->Length+1)]);
+                                   guideLst[GuideInx]->LastBitapMatrices[Chromosome->TextInx%(guideLst[GuideInx]->Length+max_bulge)]);
                 if (CheckForAlignment(guideLst[GuideInx], tempOffTarget, Chromosome->TextInx) ==0) {
                     AddOffTargetToList(guideLst[GuideInx], Chromosome, OffTargetHead, tempOffTarget);
                     tempOffTarget = (OffTarget *)malloc(sizeof(OffTarget));
@@ -355,7 +355,7 @@ int CheckForAlignment(Guide *GuideInfo, OffTarget *offTarget, int ChromosomeInx)
     unsigned long MsbMaskVector = MsbMaskVectorConst; // TODO: efficiency tip: change to 1!!
     for (int Distance = 0; Distance <= max_distance; Distance++) {
         if ((GuideInfo->DistanceVectors[Distance] & MsbMaskVector) == 0) { // Edit distance match threshold
-            if (TargetTraceBack(GuideInfo, offTarget, (ChromosomeInx)%(GuideInfo->Length+1), MsbMaskVector,
+            if (TargetTraceBack(GuideInfo, offTarget, (ChromosomeInx)%(GuideInfo->Length+max_bulge), MsbMaskVector,
                                 0, GuideInfo->Length, Distance, 0, 0, 0)==0) {
                 return 0;
             }
@@ -374,11 +374,11 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
             GuideInx++;
             SiteInx--;
             MaskBitVector = MaskBitVector >> 1;
-            MatrixInx=(MatrixInx+1)%(GuideInfo->Length+1);
+            MatrixInx=(MatrixInx+1)%(GuideInfo->Length+max_bulge);
             GuideInfo->EncodeAlignment[AlignmentInx++] = 1; // Match
         } else { // check for mismatch
             if (CurMismatch < max_mismatch & (GuideInfo->LastBitapMatrices[MatrixInx]->MismatchVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+1), MaskBitVector >> 1,
+                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+max_bulge), MaskBitVector >> 1,
                                     GuideInx+1, SiteInx-1, CurDistance-1, CurMismatch+1, CurBulge, AlignmentInx+1)==0){
                     GuideInfo->EncodeAlignment[AlignmentInx] = 2; // Mismatch
                     return 0;
@@ -392,7 +392,7 @@ int TargetTraceBack(Guide *GuideInfo, OffTarget *offTarget, int MatrixInx, unsig
                 }
             } // check for insertion
             if (CurBulge < max_bulge & (GuideInfo->LastBitapMatrices[MatrixInx]->DeletionVectors[CurDistance] & MaskBitVector) == 0) {
-                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+1), MaskBitVector,
+                if (TargetTraceBack(GuideInfo, offTarget, (MatrixInx+1)%(GuideInfo->Length+max_bulge), MaskBitVector,
                                     GuideInx+1, SiteInx, CurDistance-1, CurMismatch, CurBulge+1, AlignmentInx+1)==0){
                     GuideInfo->EncodeAlignment[AlignmentInx] = 4; // Insertion
                     return 0;
@@ -502,7 +502,7 @@ void FreeAllMemory(ChromosomeInfo *Chromosome, Guide **guideLst, OffTarget *OffT
         free(guideLst[i]->EncodeAlignment);
         free(guideLst[i]->Read);
         free(guideLst[i]->DistanceVectors);
-        for (int j = 0; j < guideLst[i]->Length + 1; j++) {
+        for (int j = 0; j < guideLst[i]->Length + max_bulge; j++) {
             free(guideLst[i]->LastBitapMatrices[j]->MatchVectors);
             free(guideLst[i]->LastBitapMatrices[j]->MismatchVectors);
             free(guideLst[i]->LastBitapMatrices[j]->InsertionVectors);
