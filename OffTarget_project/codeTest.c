@@ -10,9 +10,29 @@
 #define MASK_TO_CHAR(mask) (mask&0x88 ? 'A' : mask&0x44 ? 'C' : mask&0x22 ? 'G' : mask&0x11 ? 'T' : 'N')
 
 int main() {
-    unsigned long mask = 17592186044416;
-    unsigned long match = 18446726481523507200;
-
+    int resNum = 0;
+    char *FilePath = "/Users/amichaim/CLionProjects/OffTarget/OffTarget_project/pam_output.txt";
+    FILE *resFile = fopen(FilePath, "r");
+    char lineBuffer[300];
+    int tabCnt = 0, lineInx = 0;
+    fscanf(resFile, "%[^\n]c", lineBuffer);
+    fscanf(resFile, "%*c"); //skip '\n'
+    while (fscanf(resFile, "%[^\n]c", lineBuffer) != EOF) { //read until new line
+        fscanf(resFile, "%*c"); //skip '\n'
+        while (tabCnt != 6){
+            if (lineBuffer[lineInx] == '\t'){
+                tabCnt++;
+            }
+            lineInx ++;
+        }
+        if (lineBuffer[lineInx] == '0' || lineBuffer[lineInx] == '1' || lineBuffer[lineInx] == '2' || lineBuffer[lineInx] == '3'){
+            resNum++;
+        }
+        tabCnt = 0;
+        lineInx = 0;
+    }
+    printf("resNum = %d\n",resNum);
+    fclose(resFile);
     return 0;
 }
 

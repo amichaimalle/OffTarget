@@ -17,7 +17,10 @@
 #define CHAR_TO_MASK(char) (char == 'A' ? 0 : char == 'C' ? 1 : char == 'G' ? 2 : char == 'T' ? 3 : 4)
 #define MASK_TO_CHAR(mask) (mask&0x88 ? 'A' : mask&0x44 ? 'C' : mask&0x22 ? 'G' : mask&0x11 ? 'T' : 'N')
 
-#define COMPLEMENT_NUCLEOTIDE(char) (char == 'A' ? 'T' : char == 'C' ? 'G' : char == 'G' ? 'C' : char == 'T' ? 'A' : char)
+#define COMPLEMENT_NUCLEOTIDE(char) (char == 'A' ? 'T' : char == 'T' ? 'A' : char == 'G' ? 'C' : char == 'C' ? 'G' : \
+                                     char == 'R' ? 'Y' : char == 'Y' ? 'R' : char == 'K' ? 'M' : char == 'M' ? 'K' : \
+                                     char == 'H' ? 'D' : char == 'D' ? 'H' : char == 'B' ? 'V' : char == 'V' ? 'B' : \
+                                     char) // W -> W, S -> S, N -> N
 #define NEXT_MATRIX_INX(char, int)  (char == '+' ? int - 1 : int + 1)
 
 //structs
@@ -45,7 +48,6 @@ typedef struct {
 } Pam;
 
 typedef struct {
-    //unsigned long RdVectors;
     unsigned long *MatchVectors;
     unsigned long *MismatchVectors;
     unsigned long *InsertionVectors;
@@ -211,9 +213,11 @@ int main(int argc, char* argv[]){
 //--------------------------------------------
 
 FILE *OpenNextChromosomeFile() {
-    char *FilePath = (char *)malloc(sizeof(char)* strlen(chromosome_file_path));
-    strcpy(FilePath, chromosome_file_path);
-    FilePath[strlen(FilePath)-5] = '1' + NumOfChromosomes;
+    char currentChrNum[20];
+    sprintf(currentChrNum, "%d", NumOfChromosomes+1);
+    char *FilePath = (char *)malloc(sizeof(char)* strlen(chromosome_file_path) + strlen(currentChrNum) - 2);
+    strncpy(FilePath,chromosome_file_path,strlen(chromosome_file_path)-5);
+    sprintf(FilePath,"%s%s.txt",FilePath,currentChrNum);
     FILE *ChrFile = fopen(FilePath, "r");
     if (ChrFile == NULL && NumOfChromosomes == 0) {
         printf("Error: 1st Chromosome file not found\n"
@@ -254,7 +258,22 @@ int ReadChromosome(ChromosomeInfo *Chromosome) {
                 case 'T':
                     Chromosome->Text[Chromosome->TextInx++] =  0x01;
                     break;
+                case 'a':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x08;
+                    break;
+                case 'c':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x04;
+                    break;
+                case 'g':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x02;
+                    break;
+                case 't':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x01;
+                    break;
                 case 'N':
+                    Chromosome->Text[Chromosome->TextInx++] =  0x00;
+                    break;
+                case 'n':
                     Chromosome->Text[Chromosome->TextInx++] =  0x00;
                     break;
             }
@@ -735,7 +754,6 @@ void PrintOffTargets(OffTarget *OffTargetHead, char *PamRead){
         printf("PAM: %s\n", PamRead);
     }
     printf("Number of off-targets found: %d\n\n", NumOfOffTargets);
-    printf("Created by Amichai Malle & Eliav Cohen\n");
 }
 
 void FreeAllMemory(ChromosomeInfo *Chromosome, Pam *PamInfo, Guide **guideLst, OffTarget *OffTargetHead){
@@ -808,5 +826,7 @@ void printReadMe() {
             "\t-chr_max <max_chromosome_length>    [default = 300000000] The maximum length of the chromosome files\n"
             "\t\t\t\t\t\t\t\tthe program will allocate memory for the chromosome files according\n"
             "\t\t\t\t\t\t\t\tto this value"
+            "\n\tCreated by Amichai Malle & Eliav Cohen"
+
     );
 }
